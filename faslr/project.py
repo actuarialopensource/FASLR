@@ -1,6 +1,7 @@
+from __future__ import annotations
 from faslr.connection import connect_db
 
-from faslr.data import(
+from faslr.data import (
     DataPane
 )
 
@@ -12,6 +13,8 @@ from faslr.schema import (
 )
 
 from faslr.project_item import ProjectItem
+
+from faslr.utilities import open_item_tab
 
 from PyQt6.QtCore import (
     Qt,
@@ -35,7 +38,11 @@ from PyQt6.QtWidgets import (
     QTreeView
 )
 
+from typing import TYPE_CHECKING
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from main import MainWindow
 
 
 class ProjectDialog(QDialog):
@@ -184,7 +191,10 @@ class ProjectDialog(QDialog):
 
 
 class ProjectTreeView(QTreeView):
-    def __init__(self, parent=None):
+    def __init__(
+            self,
+            parent: MainWindow = None
+    ):
         super().__init__()
         self.parent = parent
         print(parent)
@@ -198,17 +208,38 @@ class ProjectTreeView(QTreeView):
 
         self.delete_project_action = QAction("&Delete Project", self)
         self.delete_project_action.setStatusTip("Delete the project.")
-        self.delete_project_action.triggered.connect(self.delete_project)
+        self.delete_project_action.triggered.connect(self.delete_project) # noqa
 
         # self.doubleClicked.connect(self.get_value) # noqa
 
-        self.doubleClicked.connect(self.open_data_pane)
+        self.doubleClicked.connect(self.process_double_click) # noqa
 
-    def open_data_pane(self, val: QModelIndex):
-        title = str(val.data())
-        self.parent.analysis_pane.addTab(DataPane(), title)
+    def process_double_click(
+            self,
+            val: QModelIndex
+    ) -> None:
 
-    def contextMenuEvent(self, event):
+        # if clicking the uuid column, get the name from the project column
+        if val.column() == 1:
+            ix_col_0 = self.model().sibling(
+                val.row(),
+                0,
+                val
+            )
+            title = ix_col_0.data()
+        else:
+            title = str(val.data())
+
+        open_item_tab(
+            title=title,
+            tab_widget=self.parent.analysis_pane,
+            item_widget=DataPane(main_window=self.parent)
+        )
+
+    def contextMenuEvent(
+            self,
+            event
+    ) -> None:
         """
         When right-clicking a cell, activate context menu.
         :param event:
@@ -219,7 +250,10 @@ class ProjectTreeView(QTreeView):
         menu.addAction(self.delete_project_action)
         menu.exec(event.globalPos())
 
-    def get_value(self, val: QModelIndex):
+    def get_value(
+            self,
+            val: QModelIndex
+    ) -> None:
         # Just some scaffolding that helps me navigate positions within the ProjectTreeView model
         # print(val)
         # print(self)
@@ -231,7 +265,7 @@ class ProjectTreeView(QTreeView):
         print(self.parent.db)
         # print(self.table.selectedIndexes())
 
-    def delete_project(self, mainwindow):
+    def delete_project(self) -> None:
 
         """print uuid of current selected index"""
         uuid = self.currentIndex().siblingAtColumn(1).data()
@@ -334,6 +368,3 @@ class ProjectTreeView(QTreeView):
         self.parent.project_pane.expandAll()
 
         connection.close()
-
-
-            
