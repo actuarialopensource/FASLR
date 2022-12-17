@@ -19,9 +19,18 @@ from faslr.constants.settings import (
 )
 
 from faslr.constants.general import (
+    BRANCH_SHA,
     BUILD_VERSION,
     CONFIG_PATH,
+    CURRENT_BRANCH,
+    CURRENT_COMMIT,
+    CURRENT_COMMIT_LONG,
+    DISCUSSIONS_URL,
+    DOCUMENTATION_URL,
+    GITHUB_URL,
     ICONS_PATH,
+    ISSUES_URL,
+    OCTICONS_PATH,
     QT_FILEPATH_OPTION,
     ROOT_PATH,
     TEMPLATES_PATH

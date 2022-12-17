@@ -8,6 +8,7 @@ from faslr.data import (
 from faslr.schema import (
     CountryTable,
     LOBTable,
+    LocationTable,
     ProjectTable,
     StateTable
 )
@@ -74,15 +75,20 @@ class ProjectDialog(QDialog):
 
         self.setLayout(self.layout)
 
-    def make_project(self, main_window):
+    def make_project(
+            self,
+            main_window: MainWindow
+    ) -> None:
 
         # connect to the database
         session, connection = connect_db(db_path=main_window.db)
 
+        # Take values from the form
         country_text = self.country_edit.text()
         state_text = self.state_edit.text()
         lob_text = self.lob_edit.text()
 
+        # Create an entries for the project tree
         country = ProjectItem(
             country_text,
             set_bold=True
@@ -94,55 +100,158 @@ class ProjectDialog(QDialog):
 
         lob = ProjectItem(
             lob_text,
-            text_color=QColor(155, 0, 0)
+            text_color=QColor(
+                155,
+                0,
+                0
+            )
         )
 
+        # Check if the country is already in the database
         country_query = session.query(CountryTable).filter(CountryTable.country_name == country_text)
 
-        new_project = ProjectTable()
+        # new_project = ProjectTable()
 
+        # If the country is not already in the database, create a new entry for it
         if country_query.first() is None:
 
+            # Generate project UUIDs for each of the three fields
             country_uuid = str(uuid4())
             state_uuid = str(uuid4())
             lob_uuid = str(uuid4())
 
-            new_country = CountryTable(country_name=country_text, project_tree_uuid=country_uuid)
-            new_state = StateTable(state_name=state_text, project_tree_uuid=state_uuid)
-            new_lob = LOBTable(lob_type=lob_text, project_tree_uuid=lob_uuid)
+            # Create location ids for country and state
+            new_country_location = LocationTable(hierarchy="country")
 
+            new_state_location = LocationTable(hierarchy="state")
+
+            session.add(new_country_location)
+            session.add(new_state_location)
+
+            # flush the session to get the newly created location ids
+            session.flush()
+
+            # Create state and country db entries
+            new_country = CountryTable(
+                country_name=country_text,
+                project_id=country_uuid,
+                location_id=new_country_location.location_id
+            )
+
+            new_state = StateTable(
+                state_name=state_text,
+                project_id=state_uuid,
+                location_id=new_state_location.location_id
+            )
+
+            # Create corresponding projects
+            new_country_project = ProjectTable(
+                project_id=country_uuid
+            )
+
+            new_state_project = ProjectTable(
+                project_id=state_uuid
+            )
+
+            # fill out object hierarchy
             new_country.state = [new_state]
-            new_lob.country = new_country
-            new_lob.state = new_state
+            new_country_project.country = [new_country]
+            new_state_project.state = [new_state]
 
-            new_project.lob = new_lob
-
+            # Add entries into the project tree
             country.appendRow([state, QStandardItem(state_uuid)])
             state.appendRow([lob, QStandardItem(lob_uuid)])
 
-            main_window.project_root.appendRow([country, QStandardItem(country_uuid)])
+            main_window.project_root.appendRow([
+                country,
+                QStandardItem(country_uuid)
+            ])
 
+            # Add entries to the database session
+            session.add(new_country_project)
+            session.add(new_state_project)
+
+            # define lob entry, we need to do this after state and country because we depend on the ids
+            new_lob_project = ProjectTable(
+                project_id=lob_uuid
+            )
+
+            lob_location = new_state_location.location_id
+
+            new_lob = LOBTable(
+                lob_type=lob_text,
+                project_id=lob_uuid,
+                location_id=lob_location
+            )
+
+            new_lob.country = new_country
+            new_lob.state = new_state
+            new_lob_project.lob = [new_lob]
+
+            session.add(new_lob_project)
+
+        # Otherwise, check if the state is already in the database
         else:
+
             existing_country = country_query.first()
             country_id = existing_country.country_id
-            country_uuid = existing_country.project_tree_uuid
+            country_uuid = existing_country.project_id
+
+            # If the state is in the database, this query should return it
             state_query = session.query(StateTable).filter(
                 StateTable.state_name == state_text
             ).filter(
                 StateTable.country_id == country_id
             )
 
+            # If the state isn't already in the database, create an entry for it
             if state_query.first() is None:
+
+                # create project ids for state and lob only, since country uuid already exists
                 state_uuid = str(uuid4())
                 lob_uuid = str(uuid4())
-                new_state = StateTable(state_name=state_text, project_tree_uuid=state_uuid)
+
+                new_state_location = LocationTable(hierarchy="state")
+                session.add(new_state_location)
+                # flush the session to get the newly created location id
+                session.flush()
+
+                # Create database entry for the state and its associated project
+                new_state = StateTable(
+                    state_name=state_text,
+                    project_id=state_uuid,
+                    location_id=new_state_location.location_id
+                )
+
+                new_state_project = ProjectTable(
+                    project_id=state_uuid
+                )
+
                 new_state.country = existing_country
-                new_lob = LOBTable(lob_type=lob_text, project_tree_uuid=lob_uuid)
+
+                session.add(new_state_project)
+
+                # Define the new LOB
+                lob_location = new_state_location.location_id
+
+                new_lob = LOBTable(
+                    lob_type=lob_text,
+                    project_id=lob_uuid,
+                    location_id=lob_location
+                )
+
+                new_lob_project = ProjectTable(
+                    project_id=lob_uuid
+                )
+
                 new_lob.country = existing_country
                 new_lob.state = new_state
+                new_lob_project.lob = [new_lob]
 
-                new_project.lob = new_lob
+                session.add(new_lob_project)
 
+                # populate the project tree
+                # find the existing country and append the new state to it
                 country_tree_item = main_window.project_model.findItems(
                     country_uuid,
                     Qt.MatchFlag.MatchExactly,
@@ -156,15 +265,30 @@ class ProjectDialog(QDialog):
                     it_col_0.appendRow([state, QStandardItem(state_uuid)])
                     state.appendRow([lob, QStandardItem(lob_uuid)])
 
+            # If the state already exists append the LOB to it
             else:
                 existing_state = state_query.first()
-                state_uuid = existing_state.project_tree_uuid
+                state_uuid = existing_state.project_id
                 lob_uuid = str(uuid4())
-                new_lob = LOBTable(lob_type=lob_text, project_tree_uuid=lob_uuid)
+
+                lob_location = existing_state.location_id
+
+                new_lob = LOBTable(
+                    lob_type=lob_text,
+                    project_id=lob_uuid,
+                    location_id=lob_location
+                )
+
                 new_lob.country = existing_country
                 new_lob.state = existing_state
 
-                new_project.lob = new_lob
+                new_lob_project = ProjectTable(
+                    project_id=lob_uuid
+                )
+
+                session.add(new_lob)
+                session.add(new_lob_project)
+
                 state_tree_item = main_window.project_model.findItems(
                     state_uuid,
                     Qt.MatchFlag.MatchRecursive,
@@ -176,8 +300,6 @@ class ProjectDialog(QDialog):
                     ix_col_0 = main_window.project_model.sibling(ix.row(), 0, ix)
                     it_col_0 = main_window.project_model.itemFromIndex(ix_col_0)
                     it_col_0.appendRow([lob, QStandardItem(lob_uuid)])
-
-        session.add(new_project)
 
         session.commit()
 
@@ -221,6 +343,7 @@ class ProjectTreeView(QTreeView):
 
         # if clicking the uuid column, get the name from the project column
         if val.column() == 1:
+            project_id = val.data()
             ix_col_0 = self.model().sibling(
                 val.row(),
                 0,
@@ -229,11 +352,20 @@ class ProjectTreeView(QTreeView):
             title = ix_col_0.data()
         else:
             title = str(val.data())
+            ix_col_1 = self.model().sibling(
+                val.row(),
+                1,
+                val
+            )
+            project_id = ix_col_1.data()
 
         open_item_tab(
             title=title,
             tab_widget=self.parent.analysis_pane,
-            item_widget=DataPane(main_window=self.parent)
+            item_widget=DataPane(
+                main_window=self.parent,
+                project_id=project_id
+            )
         )
 
     def contextMenuEvent(
@@ -279,20 +411,24 @@ class ProjectTreeView(QTreeView):
             parent = current_item.parent()
             # case when selection is an LOB
             if parent.parent():
-                lob = session.query(LOBTable).filter(LOBTable.project_tree_uuid == uuid)
-                lob.delete()
+                lob = session.query(LOBTable).filter(LOBTable.project_id == uuid).one()
+                session.delete(lob)
 
             # Case when selection is a state
             else:
-                state = session.query(StateTable).filter(StateTable.project_tree_uuid == uuid)
+                state = session.query(StateTable).filter(StateTable.project_id == uuid)
                 state_first = state.first()
-                session.query(LOBTable).filter(LOBTable.state_id == state_first.state_id).delete()
-                state.delete()
+                location_id = state_first.location_id
+                location = session.query(LocationTable).filter(LocationTable.location_id == location_id).one()
+                session.delete(location)
 
         # Case when selection is a country
         else:
-            country = session.query(CountryTable).filter(CountryTable.project_tree_uuid == uuid)
-            country.delete()
+            country = session.query(CountryTable).filter(CountryTable.project_id == uuid)
+            country_first = country.first()
+            location_id = country_first.location_id
+            location = session.query(LocationTable).filter(LocationTable.location_id == location_id).one()
+            session.delete(location)
 
         session.commit()
         
@@ -309,7 +445,7 @@ class ProjectTreeView(QTreeView):
         countries = session.query(
             CountryTable.country_id,
             CountryTable.country_name,
-            CountryTable.project_tree_uuid
+            CountryTable.project_id
         ).all()
 
         # Append each row one at a time, brute force method. For each country, add state rows, and
@@ -330,7 +466,7 @@ class ProjectTreeView(QTreeView):
             states = session.query(
                 StateTable.state_id,
                 StateTable.state_name,
-                StateTable.project_tree_uuid
+                StateTable.project_id
             ).filter(
                 StateTable.country_id == country_id
             )
@@ -344,11 +480,15 @@ class ProjectTreeView(QTreeView):
                 state_row = [state_item, QStandardItem(state_uuid)]
 
                 lobs = session.query(
-                    LOBTable.lob_type, LOBTable.project_tree_uuid
+                    LOBTable.lob_type, LOBTable.project_id
+                ).join(
+                    LocationTable
+                ).join(
+                    StateTable
                 ).filter(
-                    LOBTable.country_id == country_id
+                    StateTable.country_id == country_id
                 ).filter(
-                    LOBTable.state_id == state_id
+                    StateTable.state_id == state_id
                 )
 
                 for lob, lob_uuid in lobs:

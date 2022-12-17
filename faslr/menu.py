@@ -3,11 +3,21 @@ Contains the menu bar of the main window i.e., the horizontal bar that has stuff
 """
 from __future__ import annotations
 
+import webbrowser
+
 from faslr.about import AboutDialog
 
 from faslr.connection import ConnectionDialog
 
-from faslr.constants import CONFIG_PATH
+from faslr.constants import (
+    CONFIG_PATH,
+    DISCUSSIONS_URL,
+    DOCUMENTATION_URL,
+    GITHUB_URL,
+    ICONS_PATH,
+    ISSUES_URL,
+    OCTICONS_PATH
+)
 
 from faslr.project import ProjectDialog
 
@@ -15,6 +25,7 @@ from faslr.settings import SettingsDialog
 
 from PyQt6.QtGui import (
     QAction,
+    QIcon,
     QKeySequence
 )
 
@@ -37,7 +48,7 @@ class MainMenuBar(QMenuBar):
 
         self.parent = parent
 
-        self.connection_action = QAction("&Connection", self)
+        self.connection_action = QAction(QIcon(ICONS_PATH + "db.svg"), "&Connection", self)
         self.connection_action.setShortcut(QKeySequence("Ctrl+Shift+c"))
         self.connection_action.setStatusTip("Edit database connection.")
         # noinspection PyUnresolvedReferences
@@ -68,6 +79,23 @@ class MainMenuBar(QMenuBar):
         # noinspection PyUnresolvedReferences
         self.about_action.triggered.connect(self.display_about)
 
+        self.documentation_action = QAction(QIcon(ICONS_PATH + "open-in-browser.svg"), "&Documentation", self)
+        self.documentation_action.setStatusTip("Go to the documentation website.")
+        self.documentation_action.setShortcut("F1")
+        self.documentation_action.triggered.connect(open_documentation) # noqa
+
+        self.github_action = QAction(QIcon(ICONS_PATH + "github.svg"), "&GitHub Repo", self)
+        self.github_action.setStatusTip("Go to the GitHub Repo.")
+        self.github_action.triggered.connect(open_github) # noqa
+
+        self.discussions_action = QAction(QIcon(OCTICONS_PATH + "comment-discussion-24.svg"), "&Discussion Board")
+        self.discussions_action.setStatusTip("Go to the discussion board.")
+        self.discussions_action.triggered.connect(open_discussions) # noqa
+
+        self.issues_action = QAction(QIcon(ICONS_PATH + "kanban-board.svg"), "&Open an Issue")
+        self.issues_action.setStatusTip("Open an issue on GitHub.")
+        self.issues_action.triggered.connect(open_issue) # noqa
+
         file_menu = QMenu("&File", self)
         self.addMenu(file_menu)
         self.addMenu("&Edit")
@@ -75,12 +103,20 @@ class MainMenuBar(QMenuBar):
         help_menu = self.addMenu("&Help")
 
         file_menu.addAction(self.connection_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.new_action)
         file_menu.addAction(self.import_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.settings_action)
 
         tools_menu.addAction(self.engine_action)
 
+        help_menu.addAction(self.documentation_action)
+        help_menu.addSeparator()
+        help_menu.addAction(self.github_action)
+        help_menu.addAction(self.discussions_action)
+        help_menu.addAction(self.issues_action)
+        help_menu.addSeparator()
         help_menu.addAction(self.about_action)
 
     def edit_connection(self) -> None:
@@ -91,7 +127,7 @@ class MainMenuBar(QMenuBar):
     def display_about(self) -> None:
         # function to display about dialog box
         dlg = AboutDialog(self)
-        dlg.exec()
+        dlg.show()
 
     def new_project(self) -> None:
         # function to display new project dialog box
@@ -114,3 +150,38 @@ class MainMenuBar(QMenuBar):
 
         else:
             self.new_action.setEnabled(False)
+
+
+def open_documentation() -> None:
+    # Open the documentation website in the browser
+
+    webbrowser.open(
+        url=DOCUMENTATION_URL,
+        new=0,
+        autoraise=True
+    )
+
+
+def open_github() -> None:
+
+    webbrowser.open(
+        url=GITHUB_URL,
+        new=0,
+        autoraise=True
+    )
+
+
+def open_discussions() -> None:
+    webbrowser.open(
+        url=DISCUSSIONS_URL,
+        new=0,
+        autoraise=True
+    )
+
+
+def open_issue() -> None:
+    webbrowser.open(
+        url=ISSUES_URL,
+        new=0,
+        autoraise=True
+    )

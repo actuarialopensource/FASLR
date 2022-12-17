@@ -14,3 +14,10 @@
 - **Friedland GL Insurer** (friedland_gl_insurer.csv) - Taken from pages 243-254 of the Friedland reserving text.
 - **Friedland XYZ Insurer - Auto BI Disposal Technique** (friedland_xyz_disp.csv) - Taken from pages 255-264 of the Friedland reserving text.
 - **Friedland US Industry Auto Case Outstanding Technique** (friedland_us_industry_auto_case.csv) - Taken from pages 270-274 of the Friedland reserving text.
+- **Friedland XYZ Insurer Case Outstanding Technique** (friedland_xyz_case.csv) - Taken from pages 275-282 of the Friedland reserving text.
+- **Friedland Med Mal Insurer** (friedland_med_mal.csv) - Taken from pages 294-303 of the Friedland reserving text.
+- **Friedland Berq-Sher Auto BI Insurer** (friedland_berq_sher_auto.csv) Taken from pages 304-315 of the Friedland reserving text.
+- **Friedland Auto Salvage and Subrogation** (friedland_auto_salsub.csv) Taken from pages 333-341 of the Friedland reserving text.
+- **Friedland Quota Share** (friedland_qs.csv) Taken from page 342 of the Friedland reserving text.
+- **Friedland Excess of Loss**(friedland_xol.csv) Taken from page 343 of the Friedland reserving text.
+- **Friedland Auto Property Damage Insurer**(friedland_autoprop.csv) Taken from pages 375-385 of the Friedland reserving text.

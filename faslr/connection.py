@@ -13,6 +13,7 @@ from faslr.constants import (
 from faslr.schema import (
     CountryTable,
     LOBTable,
+    LocationTable,
     StateTable,
 )
 
@@ -35,6 +36,10 @@ from PyQt6.QtWidgets import (
 )
 
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
+from sqlalchemy.orm.session import Session
+from sqlalchemy.engine.base import Connection
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -100,6 +105,13 @@ class ConnectionDialog(QDialog):
         """
         Creates a new backend database.
         """
+
+        # Enforce foreign key constraints for sqlite db
+        @event.listens_for(Engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
 
         filename = QFileDialog.getSaveFileName(
             parent=self,
@@ -192,7 +204,7 @@ def populate_project_tree(
     countries = session.query(
         CountryTable.country_id,
         CountryTable.country_name,
-        CountryTable.project_tree_uuid
+        CountryTable.project_id
     ).all()
 
     # Append each row one at a time, brute force method. For each country, add state rows, and
@@ -213,7 +225,7 @@ def populate_project_tree(
         states = session.query(
             StateTable.state_id,
             StateTable.state_name,
-            StateTable.project_tree_uuid
+            StateTable.project_id
         ).filter(
             StateTable.country_id == country_id
         )
@@ -227,11 +239,13 @@ def populate_project_tree(
             state_row = [state_item, QStandardItem(state_uuid)]
 
             lobs = session.query(
-                LOBTable.lob_type, LOBTable.project_tree_uuid
+                LOBTable.lob_type, LOBTable.project_id
+            ).join(
+                LocationTable
+            ).join(
+                StateTable
             ).filter(
-                LOBTable.country_id == country_id
-            ).filter(
-                LOBTable.state_id == state_id
+                StateTable.state_id == state_id
             )
 
             for lob, lob_uuid in lobs:
@@ -272,7 +286,7 @@ class FaslrConnection:
         self.connection = self.engine.connect()
 
 
-def connect_db(db_path: str):
+def connect_db(db_path: str) -> (Session, Connection):
     """
     Connects the db. Shortens amount of code required to do so.
     """

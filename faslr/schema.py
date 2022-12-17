@@ -1,29 +1,230 @@
 from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
+    Boolean,
     Column,
+    Float,
     DateTime,
     Integer,
     ForeignKey,
-    String
+    String,
 )
 
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import (
+    relationship
+)
 
 Base = declarative_base()
+
+
+class LocationTable(Base):
+    __tablename__ = 'location'
+
+    location_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    hierarchy = Column(
+        String
+    )
+
+    country = relationship(
+        "CountryTable",
+        back_populates="location",
+        cascade="all, delete"
+    )
+
+    state = relationship(
+        "StateTable",
+        back_populates='location',
+        cascade="all, delete"
+    )
+
+    lob = relationship(
+        "LOBTable",
+        back_populates="location",
+        cascade="all, delete"
+    )
+
+    def __repr__(self):
+        return "LocationTable(" \
+               "hierarchy='%s'" \
+               ")>" % (
+                   self.hierarchy
+               )
+
+
+class CountryTable(Base):
+    __tablename__ = 'country'
+
+    country_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    project_id = Column(
+        String,
+        ForeignKey('project.project_id')
+    )
+
+    location_id = Column(
+        Integer,
+        ForeignKey(
+            'location.location_id',
+            ondelete="CASCADE"
+        )
+    )
+
+    country_name = Column(String)
+
+    location = relationship(
+        "LocationTable",
+        back_populates="country"
+    )
+
+    state = relationship(
+        "StateTable",
+        back_populates="country",
+        cascade="all, delete"
+    )
+
+    project = relationship(
+        "ProjectTable",
+        back_populates="country",
+        cascade="all, delete"
+    )
+
+    def __repr__(self):
+        return "CountryTable(" \
+               "project_id='%s', " \
+               "location_id='%s', " \
+               "country_name='%s', " \
+               "project_id='%s'" \
+               ")>" % (
+                   self.project_id,
+                   self.location_id,
+                   self.country_name,
+                   self.project_id
+               )
+
+
+class StateTable(Base):
+    __tablename__ = 'state'
+
+    state_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    location_id = Column(
+        Integer,
+        ForeignKey(
+            "location.location_id",
+            ondelete="CASCADE"
+        )
+    )
+
+    country_id = Column(
+        Integer,
+        ForeignKey(
+            "country.country_id",
+            ondelete="CASCADE"
+        )
+    )
+
+    project_id = Column(
+        String,
+        ForeignKey('project.project_id')
+    )
+
+    state_name = Column(String)
+
+    country = relationship(
+        "CountryTable",
+        back_populates="state"
+    )
+
+    location = relationship(
+        "LocationTable",
+        back_populates="state",
+        cascade="all, delete"
+    )
+
+    project = relationship(
+        "ProjectTable",
+        back_populates="state",
+        cascade="all, delete"
+    )
+
+    def __repr__(self):
+        return "StateTable(" \
+               "location_id='%s'" \
+               "country_id='%s', " \
+               "location_id='%s', " \
+               "state_name='%s', " \
+               "project_id='%s', " \
+               ")>" % (
+                   self.location_id,
+                   self.country_id,
+                   self.location_id,
+                   self.state_name,
+                   self.project_id
+               )
+
+
+class LOBTable(Base):
+    __tablename__ = 'lob'
+
+    lob_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    lob_type = Column(String)
+
+    location_id = Column(
+        Integer,
+        ForeignKey(
+            'location.location_id',
+            ondelete="CASCADE"
+        )
+    )
+
+    project_id = Column(
+        String,
+        ForeignKey('project.project_id')
+    )
+
+    location = relationship(
+        "LocationTable",
+        back_populates='lob'
+    )
+
+    project = relationship(
+        "ProjectTable",
+        back_populates="lob",
+        cascade='all, delete'
+    )
+
+    def __repr__(self):
+        return "LOBTable(" \
+               "lob_type='%s', " \
+               "location_id='%s', " \
+               "project_id='%s'" \
+               ")>" % (
+                   self.lob_type,
+                   self.location_id,
+                   self.project_id
+               )
 
 
 class ProjectTable(Base):
     __tablename__ = 'project'
 
     project_id = Column(
-        Integer,
+        String,
         primary_key=True
-    )
-
-    lob_id = Column(
-        Integer,
-        ForeignKey("lob.lob_id")
     )
 
     user_id = Column(
@@ -36,130 +237,38 @@ class ProjectTable(Base):
         default=datetime.now
     )
 
+    country = relationship(
+        "CountryTable",
+        back_populates="project"
+    )
+
+    state = relationship(
+        "StateTable",
+        back_populates="project"
+    )
+
     lob = relationship(
-        "LOBTable", back_populates="project"
+        "LOBTable",
+        back_populates="project"
     )
 
     user = relationship(
-        "UserTable", back_populates="project"
+        "UserTable",
+        back_populates="project"
+    )
+
+    project_view = relationship(
+        "ProjectViewTable",
+        back_populates="project"
     )
 
     def __repr__(self):
-        return "<ProjectTable(" \
-               "lob_id='%s', " \
+        return "ProjectTable(" \
+               "user_id='%s', " \
                "created_on='%s'" \
                ")>" % (
-                   self.lob_id,
+                   self.user_id,
                    self.created_on
-               )
-
-
-class CountryTable(Base):
-    __tablename__ = 'country'
-
-    country_id = Column(
-        Integer,
-        primary_key=True
-    )
-
-    country_name = Column(String)
-
-    project_tree_uuid = Column(
-        String
-    )
-
-    state = relationship(
-        "StateTable", back_populates="country"
-    )
-
-    lob = relationship(
-        "LOBTable", back_populates="country"
-    )
-
-    def __repr__(self):
-        return "CountryTable(" \
-               "country_name='%s', " \
-               "project_tree_uuid='%s', " \
-               ")>" % (
-                   self.country_name,
-                   self.project_tree_uuid
-               )
-
-
-class StateTable(Base):
-    __tablename__ = 'state'
-
-    state_id = Column(
-        Integer,
-        primary_key=True
-    )
-
-    country_id = Column(
-        Integer,
-        ForeignKey("country.country_id")
-    )
-
-    state_name = Column(String)
-
-    project_tree_uuid = Column(String)
-
-    country = relationship("CountryTable", back_populates="state")
-
-    lob = relationship("LOBTable", back_populates="state")
-
-    def __repr__(self):
-        return "StateTable(" \
-               "state_name='%s', " \
-               "project_tree_uuid='%s', " \
-               ")>" % (
-                   self.country_name,
-                   self.project_tree_uuid
-               )
-
-
-class LOBTable(Base):
-    __tablename__ = 'lob'
-
-    lob_id = Column(
-        Integer,
-        primary_key=True
-    )
-
-    country_id = Column(
-        Integer,
-        ForeignKey('country.country_id')
-    )
-
-    state_id = Column(
-        Integer,
-        ForeignKey('state.state_id')
-    )
-
-    project_tree_uuid = Column(
-        String
-    )
-
-    lob_type = Column(String)
-
-    country = relationship(
-        "CountryTable", back_populates="lob"
-    )
-
-    state = relationship(
-        "StateTable", back_populates="lob"
-    )
-
-    project = relationship(
-        "ProjectTable", back_populates="lob"
-    )
-
-    def __repr__(self):
-        return "LOBTable(" \
-               "lob_type='%s', " \
-               "project_tree_uuid='%s', " \
-               ")>" % (
-                   self.lob_type,
-                   self.project_tree_uuid
                )
 
 
@@ -171,8 +280,13 @@ class UserTable(Base):
         primary_key=True
     )
 
+    user_name = Column(
+        String
+    )
+
     project = relationship(
-        "ProjectTable", back_populates="user"
+        "ProjectTable",
+        back_populates="user"
     )
 
     def __repr__(self):
@@ -180,3 +294,105 @@ class UserTable(Base):
                ")>" % (
 
                )
+
+
+class ProjectViewTable(Base):
+    __tablename__ = 'project_view'
+
+    view_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    name = Column(
+        String
+    )
+
+    description = Column(
+        String
+    )
+
+    created = Column(
+        DateTime,
+        default=datetime.now
+    )
+
+    modified = Column(
+        DateTime,
+        default=datetime.now
+    )
+
+    origin = Column(
+        String
+    )
+
+    development = Column(
+        String
+    )
+
+    columns = Column(
+        String
+    )
+
+    cumulative = Column(
+        Boolean
+    )
+
+    project_id = Column(
+        String,
+        ForeignKey("project.project_id")
+    )
+
+    project = relationship(
+        "ProjectTable",
+        back_populates="project_view"
+    )
+
+    def __repr__(self):
+        return "ProjectViewsTable(" \
+               "name='%s', " \
+               "description='%s', " \
+               "created='%s', " \
+               "modified='%s', " \
+               "project_id='%s'" \
+               ")>" % (
+                   self.name,
+                   self.description,
+                   self.created,
+                   self.modified,
+                   self.project_id
+               )
+
+
+class ProjectViewData(Base):
+    __tablename__ = 'project_view_data'
+
+    record_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    view_id = Column(
+        Integer,
+        ForeignKey('project_view.view_id')
+    )
+
+    accident_year = Column(
+        Integer
+    )
+
+    calendar_year = Column(
+        Integer
+    )
+
+    paid_loss = Column(
+        Float
+    )
+
+    reported_loss = Column(
+        Float
+    )
+
+    case_outstanding = Column(
+        Float
+    )
