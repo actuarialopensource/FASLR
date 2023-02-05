@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from chainladder import Triangle
 import datetime as dt
 import numpy as np
 import pandas as pd
@@ -16,20 +17,15 @@ from faslr.connection import (
 )
 
 from faslr.constants import (
-    GRAINS,
-    ICONS_PATH
-)
-
-from faslr.utilities import open_item_tab
-
-from chainladder import Triangle
-
-from faslr.constants import (
     DEVELOPMENT_FIELDS,
+    GRAINS,
+    ICONS_PATH,
     LOSS_FIELDS,
     ORIGIN_FIELDS,
     QT_FILEPATH_OPTION
 )
+
+from faslr.utilities import open_item_tab
 
 from faslr.schema import (
     ProjectViewTable,
@@ -428,9 +424,9 @@ class ImportArgumentsTab(QWidget):
         self.values_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.values_container.setLayout(self.values_layout)
         self.values_layout.addWidget(self.values_dropdown)
-        self.values_button = QPushButton("+")
+        self.values_button = QPushButton('+')
         self.values_button.setToolTip("Map an additional column to the triangle values argument.")
-        self.remove_values_btn = QPushButton("-")
+        self.remove_values_btn = QPushButton('-')
         self.remove_values_btn.setToolTip("Remove a column from the triangle values argument.")
         self.values_button.setFixedWidth(30)
         self.remove_values_btn.setFixedWidth(30)
