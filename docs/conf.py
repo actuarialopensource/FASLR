@@ -85,6 +85,18 @@ html_theme_options = {
             "url": "https://github.com/casact/FASLR",
             "icon": "fa-brands fa-square-github",
             "type": "fontawesome",
+        },
+        {
+            "name": "Schema",
+            "url": "https://faslr.com/db",
+            "icon": "fa-solid fa-database",
+            "type": "fontawesome",
+        },
+        {
+            "name": "Chat",
+            "url": "https://app.gitter.im/#/room/#faslr:gitter.im",
+            "icon": "fa-brands fa-gitter",
+            "type": "fontawesome"
         }
     ],
     "favicons": [

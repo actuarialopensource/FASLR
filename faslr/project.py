@@ -26,7 +26,8 @@ from PyQt6.QtGui import (
     QAction,
     QColor,
     QKeySequence,
-    QStandardItem
+    QStandardItem,
+    QStandardItemModel
 )
 
 from PyQt6.QtWidgets import (
@@ -42,14 +43,21 @@ from PyQt6.QtWidgets import (
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-if TYPE_CHECKING:
-    from main import MainWindow
+if TYPE_CHECKING:  # pragma: no coverage
+    from faslr.__main__ import MainWindow
 
 
 class ProjectDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(
+            self,
+            parent: MainWindow = None
+    ):
         super().__init__(parent)
-        self.main_window = parent.parent
+
+        if parent:
+            self.main_window = parent
+        else:
+            self.main_window = None
 
         self.country_edit = QLineEdit()
         self.state_edit = QLineEdit()
@@ -61,19 +69,39 @@ class ProjectDialog(QDialog):
         self.layout.addRow("State:", self.state_edit)
         self.layout.addRow("Line of Business:", self.lob_edit)
 
-        button_layout = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.ok_button = QDialogButtonBox.StandardButton.Ok
+        self.cancel_button = QDialogButtonBox.StandardButton.Cancel
+
+        button_layout = self.ok_button | self.cancel_button
 
         self.button_box = QDialogButtonBox(button_layout)
 
-        self.button_box = QDialogButtonBox(button_layout)
+        self.button_box.button(self.ok_button).setEnabled(False)
         # noinspection PyUnresolvedReferences
-        self.button_box.accepted.connect(lambda main_window=self.main_window: self.make_project(main_window))
+        self.button_box.accepted.connect(
+            lambda main_window=self.main_window: self.make_project(main_window)
+        )
         # noinspection PyUnresolvedReferences
         self.button_box.rejected.connect(self.reject)
+
+        self.country_edit.textEdited.connect(self.validate_input) # noqa
+        self.state_edit.textEdited.connect(self.validate_input) # noqa
+        self.lob_edit.textEdited.connect(self.validate_input) # noqa
 
         self.layout.addWidget(self.button_box)
 
         self.setLayout(self.layout)
+
+    def validate_input(self) -> None:
+        """
+        Checks whether all inputs are filled out, if so, enables the OK button.
+        :return: None
+        """
+
+        if self.country_edit.text() != '' and self.state_edit.text() != '' and self.lob_edit.text() != '':
+            self.button_box.button(self.ok_button).setEnabled(True)
+        else:
+            self.button_box.button(self.ok_button).setEnabled(False)
 
     def make_project(
             self,
@@ -81,7 +109,7 @@ class ProjectDialog(QDialog):
     ) -> None:
 
         # connect to the database
-        session, connection = connect_db(db_path=main_window.db)
+        session, connection = connect_db(db_path=main_window.core.db)
 
         # Take values from the form
         country_text = self.country_edit.text()
@@ -162,7 +190,7 @@ class ProjectDialog(QDialog):
             country.appendRow([state, QStandardItem(state_uuid)])
             state.appendRow([lob, QStandardItem(lob_uuid)])
 
-            main_window.project_root.appendRow([
+            main_window.project_model.project_root.appendRow([
                 country,
                 QStandardItem(country_uuid)
             ])
@@ -332,9 +360,12 @@ class ProjectTreeView(QTreeView):
         self.delete_project_action.setStatusTip("Delete the project.")
         self.delete_project_action.triggered.connect(self.delete_project) # noqa
 
-        # self.doubleClicked.connect(self.get_value) # noqa
+        self.doubleClicked.connect(self.get_value) # noqa
 
-        self.doubleClicked.connect(self.process_double_click) # noqa
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.contextMenuEvent)  # noqa
+
+        # self.doubleClicked.connect(self.process_double_click) # noqa
 
     def process_double_click(
             self,
@@ -364,6 +395,8 @@ class ProjectTreeView(QTreeView):
             tab_widget=self.parent.analysis_pane,
             item_widget=DataPane(
                 main_window=self.parent,
+                parent=self.parent.analysis_pane,
+                core=self.parent.core,
                 project_id=project_id
             )
         )
@@ -380,7 +413,7 @@ class ProjectTreeView(QTreeView):
         menu = QMenu()
         menu.addAction(self.new_analysis_action)
         menu.addAction(self.delete_project_action)
-        menu.exec(event.globalPos())
+        menu.exec(self.viewport().mapToGlobal(event))
 
     def get_value(
             self,
@@ -389,12 +422,14 @@ class ProjectTreeView(QTreeView):
         # Just some scaffolding that helps me navigate positions within the ProjectTreeView model
         # print(val)
         # print(self)
+        print(val.row())
+        print(val.column())
         print(val.data())
         # print(val.row())
         # print(val.column())
         ix_col_0 = self.model().sibling(val.row(), 1, val)
         print(ix_col_0.data())
-        print(self.parent.db)
+        print(self.parent.core.db)
         # print(self.table.selectedIndexes())
 
     def delete_project(self) -> None:
@@ -403,7 +438,7 @@ class ProjectTreeView(QTreeView):
         uuid = self.currentIndex().siblingAtColumn(1).data()
         current_item = self.model().itemFromIndex(self.currentIndex())
         # connect to the database
-        session, connection = connect_db(db_path=self.parent.db)
+        session, connection = connect_db(db_path=self.parent.core.db)
         
         # delete the item from the database with uuid
 
@@ -503,8 +538,17 @@ class ProjectTreeView(QTreeView):
 
                 country_item.appendRow(state_row)
 
-            self.parent.project_root.appendRow(country_row)
+            self.parent.project_model.project_root.appendRow(country_row)
 
         self.parent.project_pane.expandAll()
 
         connection.close()
+
+
+class ProjectModel(QStandardItemModel):
+    def __init__(self):
+        super().__init__()
+
+        self.setHorizontalHeaderLabels(["Project", "Project_UUID"])
+
+        self.project_root = self.invisibleRootItem()

@@ -16,13 +16,18 @@ from faslr.connection import (
     FaslrConnection
 )
 
+from faslr.core import (
+    FCore
+)
+
 from faslr.constants import (
     DEVELOPMENT_FIELDS,
     GRAINS,
     ICONS_PATH,
     LOSS_FIELDS,
     ORIGIN_FIELDS,
-    QT_FILEPATH_OPTION
+    QT_FILEPATH_OPTION,
+    SAMPLE_DIALOG_PATH
 )
 
 from faslr.utilities import open_item_tab
@@ -66,8 +71,9 @@ from typing import (
     TYPE_CHECKING
 )
 
-if TYPE_CHECKING:
-    from faslr.main import MainWindow
+if TYPE_CHECKING:  # pragma no cover
+    from faslr.__main__ import MainWindow
+    from pandas import DataFrame
 
 # Starting contents of data preview when no files have been uploaded yet
 dummy_df = pd.DataFrame(
@@ -104,13 +110,17 @@ class DataPane(QWidget):
     """
     def __init__(
             self,
+            project_id: str = None,
+            parent: QTabWidget = None,
             main_window: MainWindow = None,
-            project_id: str = None
+            core: FCore = None
     ):
         super().__init__()
 
         self.wizard = None
         self.main_window = main_window
+        self.core = core
+        self.parent = parent
         self.project_id = project_id
         self.triangle = None  # for testing purposes, will store triangle data in db later so remove once that is done
         self.data = None
@@ -126,7 +136,10 @@ class DataPane(QWidget):
         )
 
         self.data_view = ProjectDataView(parent=self)
-        self.data_model = ProjectDataModel(parent=self)
+        self.data_model = ProjectDataModel(
+            parent=self,
+            core=core
+        )
         self.data_view.setModel(self.data_model)
         self.layout.addWidget(self.data_view)
 
@@ -151,6 +164,14 @@ class DataPane(QWidget):
             desc: str,
             triangle: Triangle
     ) -> None:
+        """
+        Adds a data view record and saves data to the database.
+
+        :param name: A human-readable label to identify the data view.
+        :param desc: A longer description of the data view contents.
+        :param triangle: A ChainLadder triangle.
+        :return: None
+        """
 
         created = dt.datetime.today()
         modified = dt.datetime.today()
@@ -183,7 +204,7 @@ class DataPane(QWidget):
             modified,
     ):
 
-        faslr_conn = FaslrConnection(db_path=self.main_window.db)
+        faslr_conn = FaslrConnection(db_path=self.core.db)
 
         project_view = ProjectViewTable(
             name=name,
@@ -313,9 +334,6 @@ class DataImportWizard(QWidget):
         """
         Cancel import and close the dialog box.
         """
-
-        if self.parent:
-            self.close()
 
         self.close()
 
@@ -532,6 +550,7 @@ class ImportArgumentsTab(QWidget):
         filename = QFileDialog.getOpenFileName(
             parent=self,
             caption='Open File',
+            directory=SAMPLE_DIALOG_PATH,
             filter='CSV (*.csv)',
             options=QT_FILEPATH_OPTION
         )[0]
@@ -836,16 +855,63 @@ class TrianglePreviewTab(QWidget):
 class ProjectDataModel(FAbstractTableModel):
     def __init__(
             self,
-            parent: DataPane = None
+            parent: DataPane = None,
+            core: FCore = None
     ):
         super().__init__()
 
         self.parent = parent
+        self.core = core
 
-        fc = FaslrConnection(db_path=self.parent.main_window.db)
-        df = pd.read_sql_table('project_view', con=fc.connection)
-        df = df[['view_id', 'name', 'description', 'created', 'modified']]
-        df.columns = ['View Id', 'Name', 'Description', 'Created', 'Modified']
+        column_list = [
+            'View Id',
+            'Name',
+            'Description',
+            'Created',
+            'Modified'
+        ]
+
+        def read_sql(fc: FaslrConnection) -> DataFrame:
+
+            df_res = pd.read_sql_table(
+                table_name='project_view',
+                con=fc.connection
+            )
+
+            df_res = df_res[
+                [
+                    'view_id',
+                    'name',
+                    'description',
+                    'created',
+                    'modified'
+                ]
+            ]
+            df_res.columns = column_list
+
+            return df_res
+
+        # If running from main application, read project views from the database. Otherwise, return blank if
+        # running in standalone demo mode.
+        if self.parent.main_window:
+
+            faslr_connection = FaslrConnection(
+                db_path=self.parent.main_window.core.db
+            )
+
+            df = read_sql(fc=faslr_connection)
+
+        elif self.core:
+
+            faslr_connection = FaslrConnection(
+                db_path=self.core.db
+            )
+
+            df = read_sql(fc=faslr_connection)
+
+        else:
+            df = pd.DataFrame(columns=column_list)
+
         self._data = df
 
     def data(
@@ -913,12 +979,15 @@ class ProjectDataView(FTableView):
         self.open_action.setStatusTip("Open view in new window.")
         self.open_action.triggered.connect(self.open_triangle) # noqa
 
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.contextMenuEvent)  # noqa
+
     def open_triangle(
             self,
             val: QModelIndex
     ) -> None:
 
-        fc = FaslrConnection(db_path=self.parent.main_window.db)
+        fc = FaslrConnection(db_path=self.parent.core.db)
 
         view_id = self.model().sibling(val.row(), 0, val).data()
         query = fc.session.query(
@@ -949,7 +1018,7 @@ class ProjectDataView(FTableView):
 
         open_item_tab(
             title="Test Triangle",
-            tab_widget=self.parent.main_window.analysis_pane,
+            tab_widget=self.parent.parent,
             item_widget=AnalysisTab(triangle=triangle)
         )
 
@@ -959,4 +1028,4 @@ class ProjectDataView(FTableView):
 
         menu = QMenu()
         menu.addAction(self.open_action)
-        menu.exec(event.globalPos())
+        menu.exec(self.viewport().mapToGlobal(event))

@@ -18,6 +18,10 @@ from faslr.base_classes import (
     FSpinBox
 )
 
+from faslr.common import (
+    AddRemoveButtonWidget
+)
+
 from faslr.constants import (
     ICONS_PATH
 )
@@ -47,7 +51,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QRadioButton,
-    QToolButton,
     QWidget,
     QStackedWidget,
     QTabWidget,
@@ -58,7 +61,7 @@ from typing import (
     TYPE_CHECKING
 )
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma no coverage
     from chainladder import Triangle
 
 matplotlib.use('Qt5Agg')
@@ -84,13 +87,21 @@ class TailPane(QWidget):
             self,
             triangle: Triangle = None
     ):
+        """
+        Dialog box for conducting tail analyses. Holds configuration sub widgets for various tail-factor models
+        (Constant, Curve, Clark, Bondy) as well as a canvas for plotting diagnostic charts.
+
+        :param triangle:
+        """
         super().__init__()
 
         self.triangle = triangle
+
+        # Holds the currently toggled chart
         self.toggled_chart = 'curve_btn'
 
         # list to hold each tail candidate
-        self.tail_candidates = []
+        self.tail_candidates: [TailConfig] = []
         self.setWindowTitle("Tail Analysis")
 
         # number of tabs that have been created, used to create default names for the candidate tabs
@@ -120,42 +131,7 @@ class TailPane(QWidget):
         canvas_container.setLayout(canvas_layout)
 
         # layout to toggle between charts
-        ly_graph_toggle = QVBoxLayout()
-        ly_graph_toggle.setAlignment(Qt.AlignmentFlag.AlignTop)
-        graph_toggle_btns = QWidget()
-        graph_toggle_btns.setLayout(ly_graph_toggle)
-
-        curve_btn = QPushButton('')
-        curve_btn.setIcon(QIcon(ICONS_PATH + 'graph-down.svg'))
-        curve_btn.setToolTip('Development factor comparison')
-        curve_btn.clicked.connect(partial(self.toggle_chart, 'curve_btn'))  # noqa
-
-        tail_comps_btn = QPushButton('')
-        tail_comps_btn.setIcon(QIcon(ICONS_PATH + 'bar-chart-2.svg'))
-        tail_comps_btn.setToolTip('Tail factor comparison')
-        tail_comps_btn.clicked.connect(partial(self.toggle_chart, 'tail_comps_btn'))  # noqa
-
-        extrap_btn = QPushButton('')
-        extrap_btn.setIcon(QIcon(ICONS_PATH + 'curve-graph.svg'))
-        extrap_btn.setToolTip('Extrapolation')
-        extrap_btn.clicked.connect(partial(self.toggle_chart, 'extrap_btn'))  # noqa
-
-        reg_btn = QPushButton('')
-        reg_btn.setIcon(QIcon(ICONS_PATH + 'scatter-plot.svg'))
-        reg_btn.setToolTip('Fit period comparison')
-        reg_btn.clicked.connect(partial(self.toggle_chart, 'reg_btn'))  # noqa
-
-        ly_graph_toggle.addWidget(curve_btn)
-        ly_graph_toggle.addWidget(tail_comps_btn)
-        ly_graph_toggle.addWidget(extrap_btn)
-        ly_graph_toggle.addWidget(reg_btn)
-
-        ly_graph_toggle.setContentsMargins(
-            0,
-            40,
-            0,
-            0
-        )
+        self.graph_toggle_btns = TailChartToggle(parent=self)
 
         # Tabs to hold each tail candidate
         self.config_tabs = ConfigTab(parent=self)
@@ -186,7 +162,7 @@ class TailPane(QWidget):
         )
 
         hlayout.addWidget(
-            graph_toggle_btns
+            self.graph_toggle_btns
         )
 
         self.setLayout(vlayout)
@@ -293,6 +269,7 @@ class TailPane(QWidget):
                     attachment_age=attachment_age,
                     projection_period=projection_period
                 ).fit_transform(self.triangle)
+
             else:
                 raise Exception("Invalid tail type selected.")
 
@@ -457,6 +434,81 @@ class TailPane(QWidget):
         self.toggled_chart = value
 
         self.update_plot()
+
+
+class TailChartToggle(QWidget):
+    def __init__(
+            self,
+            parent: TailPane = None
+    ):
+        """
+        Holds button box to toggle diagnostic charts on the TailPane. Intended to be extensible,
+        will eventually allow users to add their own buttons via extensions.
+
+        :param parent:
+        """
+        super().__init__()
+
+        self.parent = parent
+
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+        self.layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        self.curve_btn = self.add_chart_button(
+            name='curve_btn',
+            tool_tip='Development factor comparison',
+            icon='graph-down.svg'
+        )
+
+        self.tail_comps_btn = self.add_chart_button(
+            name='tail_comps_btn',
+            tool_tip='Tail factor comparison',
+            icon='bar-chart-2.svg'
+        )
+
+        self.extrap_btn = self.add_chart_button(
+            name='extrap_btn',
+            tool_tip='Extrapolation',
+            icon='curve-graph.svg'
+        )
+
+        self.reg_btn = self.add_chart_button(
+            name='reg_btn',
+            tool_tip='Fit period comparison',
+            icon='scatter-plot.svg'
+        )
+
+        for widget in [
+            self.curve_btn,
+            self.tail_comps_btn,
+            self.extrap_btn,
+            self.reg_btn
+        ]:
+            self.layout.addWidget(widget)
+
+        self.layout.setContentsMargins(
+            0,
+            40,
+            0,
+            0
+        )
+
+    def add_chart_button(
+            self,
+            name: str,
+            tool_tip: str,
+            icon: str
+    ) -> QPushButton:
+
+        btn = QPushButton('')
+        btn.setIcon(QIcon(ICONS_PATH + icon))
+        btn.setToolTip(tool_tip)
+        btn.clicked.connect( # noqa
+            partial(self.parent.toggle_chart, name)
+        )
+
+        return btn
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -815,6 +867,8 @@ class TailTypeGroupBox(QGroupBox):
         # Default selection is tail constant
         self.constant_btn.setChecked(True)
 
+        self.bg_tail_type.buttonToggled.connect(self.parent.parent.update_plot)
+
 
 class TailParamsGroupBox(QGroupBox):
     """
@@ -885,15 +939,18 @@ class ConfigTab(QTabWidget):
         self.parent = parent
 
         # corner widget to hold the two corner buttons
-        self.add_remove_btns = AddRemoveButtonWidget()
+        self.add_remove_btns = AddRemoveButtonWidget(
+            p_tool_tip='Add tail candidate',
+            m_tool_tip='Remove tail candidate'
+        )
 
         self.setCornerWidget(
             self.add_remove_btns,
             Qt.Corner.TopRightCorner
         )
 
-        self.add_remove_btns.add_tab_btn.pressed.connect(self.add_candidate) # noqa
-        self.add_remove_btns.remove_tab_btn.pressed.connect(self.remove_candidate)  # noqa
+        self.add_remove_btns.add_btn.pressed.connect(self.add_candidate) # noqa
+        self.add_remove_btns.remove_btn.pressed.connect(self.remove_candidate)  # noqa
 
     def add_candidate(self) -> None:
         """
@@ -939,57 +996,6 @@ class ConfigTab(QTabWidget):
         self.parent.update_plot()
 
 
-class AddRemoveButtonWidget(QWidget):
-    """
-    The add/remove buttons for the ConfigTab. These add/remove the tabs containing the tail candidates.
-    """
-    def __init__(self):
-        super().__init__()
-
-        # Layout holds the two +/- buttons.
-        self.layout = QHBoxLayout()
-
-        self.layout.setContentsMargins(
-            0,
-            0,
-            0,
-            2
-        )
-
-        self.setContentsMargins(
-            0,
-            0,
-            0,
-            0
-        )
-
-        self.setLayout(self.layout)
-
-        # make corner buttons, these add and remove the tail candidate tabs
-        self.add_tab_btn = make_corner_button(
-            text='+',
-            width=22,
-            height=22,
-            tool_tip='Add tail candidate'
-        )
-
-        self.remove_tab_btn = make_corner_button(
-            text='-',
-            width=self.add_tab_btn.width(),
-            height=self.add_tab_btn.height(),
-            tool_tip='Remove tail candidate'
-        )
-
-        # add some space between the two buttons
-        self.layout.setSpacing(2)
-
-        for btn in [
-            self.add_tab_btn,
-            self.remove_tab_btn
-        ]:
-            self.layout.addWidget(btn)
-
-
 # Model/View of the individual LDF/CDFs with the tail in a table
 class TailTableModel(FAbstractTableModel):
     def __init__(self):
@@ -1000,22 +1006,3 @@ class TailTableView(FTableView):
     def __init__(self):
         super().__init__()
 
-
-def make_corner_button(
-        text: str,
-        height: int,
-        width: int,
-        tool_tip: str
-) -> QToolButton:
-
-    """
-    Used to make the add/remove buttons in the config tab.
-    """
-
-    btn = QToolButton()
-    btn.setText(text)
-    btn.setToolTip(tool_tip)
-    btn.setFixedHeight(height)
-    btn.setFixedWidth(width)
-
-    return btn

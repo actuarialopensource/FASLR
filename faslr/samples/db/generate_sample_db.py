@@ -1,15 +1,20 @@
 # Generates the example database (used for tutorials, testing)
 
 import os
+import sys
+from os.path import dirname
+faslr_path = dirname(dirname(dirname(dirname(os.path.realpath(__file__)))))
+sys.path.append(faslr_path)
+
 import faslr.utilities # noqa
 import pandas as pd
 import sqlalchemy as sa
 
 from faslr import schema
-from faslr.utilities.queries import delete_country
+
+from faslr.constants import SAMPLE_DB_NAME
 
 from faslr.schema import (
-    UserTable,
     CountryTable,
     LocationTable,
     StateTable,
@@ -22,13 +27,15 @@ from faslr.schema import (
 from sqlalchemy.orm import sessionmaker
 from uuid import uuid4
 
-db_name = 'sample.db'
+db_name = SAMPLE_DB_NAME
 
+# If the sample database already exists, delete it.
 try:
     os.remove(db_name)
 except OSError:
     pass
 
+# Create and connect to the database.
 engine = sa.create_engine(
     'sqlite:///' + db_name,
     echo=True,
@@ -83,7 +90,7 @@ new_lob = LOBTable(
 )
 
 path = os.path.dirname(os.path.abspath(__file__))
-df_steady_state = pd.read_csv(os.path.join(path, "friedland_us_auto_steady_state.csv"))
+df_steady_state = pd.read_csv(os.path.join(path, "../friedland_us_auto_steady_state.csv"))
 
 project_view = ProjectViewTable(
     name="Auto",
@@ -119,4 +126,8 @@ for record in data_list:
 session.add_all(obj_list)
 
 session.commit()
+
+
+
+
 session.close()

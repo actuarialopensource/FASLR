@@ -1,5 +1,35 @@
+cd /root/faslr/docs;
 git pull;
 make html;
 cp -fR _build/html/* /var/www/faslr.com/docs;
 cd /var/www/faslr.com/media;
 git pull;
+
+cd /root/faslr;
+python3 faslr/samples/db/generate_sample_db.py;
+mv sample.db ../schema/sample.db;
+cd /root/schema;
+java -jar schemaspy-6.2.3.jar -t sqlite-xerial -dp sqlite-jdbc-3.42.0.0.jar -db sample.db -sso -s sample -cat % -o db;
+sed -i "s/sample.db.sample/FASLR/g" db/index.html;
+sed -i "s/sample.db/FASLR/g" db/index.html;
+sed -i "s/.sample//g" db/index.html;
+sed -i "s/sample.db.sample/FASLR/g"  db/relationships.html;
+sed -i "s/sample.db.sample/FASLR/g"  db/columns.html;
+sed -i "s/sample.db.sample/FASLR/g"  db/anomalies.html;
+sed -i "s/sample.db.sample/FASLR/g"  db/constraints.html;
+sed -i "s/sample.db.sample/FASLR/g"  db/orphans.html;
+sed -i "s/sample.db.sample/FASLR/g"  db/routines.html;
+sed -i "s/sample.db/FASLR/g" db/relationships.html;
+sed -i "s/sample.db/FASLR/g" db/columns.html;
+sed -i "s/sample.db/FASLR/g" db/anomalies.html;
+sed -i "s/sample.db/FASLR/g" db/constraints.html;
+sed -i "s/sample.db/FASLR/g" db/orphans.html;
+sed -i "s/sample.db/FASLR/g" db/routines.html;
+sed -i "s/.sample//g" db/relationships.html;
+sed -i "s/.sample//g" db/columns.html;
+sed -i "s/.sample//g" db/anomalies.html;
+sed -i "s/.sample//g" db/constraints.html;
+sed -i "s/.sample//g" db/orphans.html;
+sed -i "s/.sample//g" db/routines.html;
+mv db/sample.db.sample.xml db/FASLR.xml
+cp -fR db/* /var/www/faslr.com/db;

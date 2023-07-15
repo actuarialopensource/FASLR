@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import (
     Boolean,
     Column,
@@ -262,6 +262,11 @@ class ProjectTable(Base):
         back_populates="project"
     )
 
+    index = relationship(
+        "IndexTable",
+        back_populates='project'
+    )
+
     def __repr__(self):
         return "ProjectTable(" \
                "user_id='%s', " \
@@ -396,3 +401,74 @@ class ProjectViewData(Base):
     case_outstanding = Column(
         Float
     )
+
+
+class IndexTable(Base):
+    __tablename__ = 'index'
+
+    index_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    description = Column(
+        String
+    )
+
+    scope = Column(
+        String # should be 'project' or 'global'
+    )
+
+    project_id = Column(
+        Integer,
+        ForeignKey('project.project_id')
+    )
+
+    project = relationship(
+        'ProjectTable',
+        back_populates='index'
+    )
+
+    def __repr__(self):
+        return "IndexTable(" \
+            "description='%s', " \
+            "scope='%s', " \
+            "project_id='%s'" \
+            ")>" % (
+               self.description,
+               self.scope,
+               self.project_id
+            )
+
+
+class IndexValuesTable(Base):
+    __tablename__ = 'index_values'
+
+    value_id = Column(
+        Integer,
+        primary_key=True
+    )
+
+    index_id = Column(
+        Integer,
+        ForeignKey('index.index_id')
+    )
+
+    year = Column(
+        Integer
+    )
+
+    change = Column(
+        Float
+    )
+
+    def __repr__(self):
+        return "IndexValueTable(" \
+               "index_id='%s', " \
+               "year='%s', " \
+               "change='%s'" \
+               ")>" % (
+                   self.index_id,
+                   self.year,
+                   self.change
+               )

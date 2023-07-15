@@ -1,7 +1,7 @@
-# FASLR
-Free Actuarial System for Loss Reserving
+# FASLR: Free Actuarial System for Loss Reserving
+[![codecov](https://codecov.io/gh/casact/FASLR/branch/main/graph/badge.svg?token=B2tp2sywL2)](https://codecov.io/gh/casact/FASLR) [![tests](https://github.com/casact/faslr/workflows/Unit%20Tests/badge.svg)](https://github.com/casact/faslr/workflows/Unit%20Tests/badge.svg) [![docs](https://github.com/casact/faslr/workflows/Docs/badge.svg)](https://faslr.com/docs) [![Join the chat at https://app.gitter.im/#/room/#faslr:gitter.im](https://badges.gitter.im/Join%20Chat.svg)](https://app.gitter.im/#/room/#faslr:gitter.im)
 
-FASLR (fæzlɹ̩) is a Qt-based frontend for open-source loss reserving packages. Current plans are to support the [Chainladder](https://github.com/casact/chainladder-python) package.
+FASLR (pronounced: [fazlur](https://en.wikipedia.org/wiki/Fazlur_Rahman_Khan)) is a Qt-based frontend for open-source loss reserving packages. Current plans are to support the [Chainladder](https://github.com/casact/chainladder-python) package.
 
 The actuarial methods and example data used in this project are derived from publicly available papers and data sources. The GUI is developed in Python using the open-source PyQt6 package.
 
@@ -33,7 +33,7 @@ You can evaluate the working version of FASLR by executing the [main.py](https:/
 
 ```shell
 cd FASLR
-python -m faslr.main
+python -m faslr
 ```
 
 Alternatively, if you have a virtual environment set up:
@@ -41,7 +41,7 @@ Alternatively, if you have a virtual environment set up:
 ```shell
 cd FASLR
 source venv/bin/activate
-python -m faslr.main
+python -m faslr
 ```
 
 To learn more about the current structure of the repository, read [ARCHITECTURE.md](https://github.com/casact/FASLR/blob/main/ARCHITECTURE.md).

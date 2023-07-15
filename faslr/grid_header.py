@@ -7,17 +7,24 @@ Class and method names will be in CamelCase to be consistent with those in PyQt.
 """
 from __future__ import annotations
 
+from faslr.constants import (
+    ColumnSpanRole,
+    RemoveCellLabelRole,
+    RowSpanRole,
+    RemoveRowSpanRole,
+    RemoveColumnSpanRole
+)
+
 from PyQt6.QtCore import (
     QAbstractTableModel,
     QModelIndex,
-    Qt,
     QRect,
-    QSize
+    QSize,
+    Qt
 )
 
 from PyQt6.QtWidgets import (
     QHeaderView,
-
     QStyle,
     QStyleOptionHeader,
     QTableView
@@ -26,10 +33,13 @@ from PyQt6.QtWidgets import (
 from PyQt6 import QtGui
 from PyQt6 import QtCore
 
-from typing import Any
+from typing import (
+    Any,
+    TYPE_CHECKING
+)
 
-ColumnSpanRole = Qt.ItemDataRole.UserRole + 1
-RowSpanRole = ColumnSpanRole + 1
+if TYPE_CHECKING: # pragma no coverage
+    from faslr.base_table import FTableView
 
 
 class TableHeaderItem:
@@ -62,6 +72,14 @@ class TableHeaderItem:
 
         self.childItems[(row, col)] = child
 
+    def removeChild( # noqa
+            self,
+            row: int,
+            col: int
+    ):
+
+        del self.childItems[(row, col)]
+
     def childCount( # noqa
             self
     ) -> int:
@@ -72,6 +90,13 @@ class TableHeaderItem:
             data: Any,
             role: int
     ):
+        if role == RemoveCellLabelRole:
+            del self._data[Qt.ItemDataRole.DisplayRole]
+        if role == RemoveRowSpanRole:
+            del self._data[RowSpanRole]
+        if role == RemoveColumnSpanRole:
+            del self._data[ColumnSpanRole]
+
         self._data[role] = data
 
     def data(
@@ -101,6 +126,7 @@ class GridHeaderTableModel(QAbstractTableModel):
         self.row = row
         self.column = column
         self.rootItem = TableHeaderItem()
+        self.parent = parent
 
     def index(
             self,
@@ -110,12 +136,14 @@ class GridHeaderTableModel(QAbstractTableModel):
     ) -> QModelIndex:
 
         if parent is None:
+
             parent = QModelIndex()
         else:
             if not self.hasIndex(row, column, parent):
                 return QModelIndex()
 
         if not parent.isValid():
+
             parent_item = self.rootItem
         else:
             parent_item = parent.internalPointer()
@@ -128,11 +156,15 @@ class GridHeaderTableModel(QAbstractTableModel):
             )
 
         except KeyError:
-
             child_item = None
 
         if not child_item:
             parent_item.insertChild(
+                row=row,
+                col=column
+            )
+
+            child_item = parent_item.child(
                 row=row,
                 col=column
             )
@@ -164,9 +196,15 @@ class GridHeaderTableModel(QAbstractTableModel):
                 if span > 0:
                     if row + span - 1 > self.row:
                         span = self.column - row
-                    item.setData(span, RowSpanRole)
+                    item.setData(
+                        data=span,
+                        role=RowSpanRole
+                    )
             else:
-                item.setData(value, role)
+                item.setData(
+                    data=value,
+                    role=role
+                )
             return True
         else:
             return False
@@ -194,6 +232,27 @@ class GridHeaderTableModel(QAbstractTableModel):
 
         return self.column
 
+    def insertColumn(self, column: int, parent: QModelIndex = ...) -> bool:
+
+        idx = QModelIndex()
+
+        new_column = self.columnCount()
+
+        self.beginInsertColumns(idx, new_column, new_column)
+
+        self.column += 1
+
+        for row in range(self.rowCount()):
+            self.setData(
+                index=self.index(row, self.column - 1),
+                value=self.parent.base_section_size,
+                role=Qt.ItemDataRole.SizeHintRole
+            )
+
+        self.endInsertColumns()
+
+        return True
+
 
 class GridTableHeaderView(QHeaderView):
     def __init__(
@@ -201,7 +260,7 @@ class GridTableHeaderView(QHeaderView):
             orientation: Qt.Orientation,
             rows: int,
             columns: int,
-            parent: GridTableView = None,
+            parent: [FTableView, GridTableView] = None,
             base_section_height: int = 20,
             base_section_width: int = 50
     ):
@@ -212,14 +271,14 @@ class GridTableHeaderView(QHeaderView):
         self.parent = parent
 
         # Store each header cell in the model as a TableHeaderItem containing the row and column number, and the size.
-        base_section_size = QSize()
+        self.base_section_size = QSize()
 
         if orientation == Qt.Orientation.Horizontal:
-            base_section_size.setWidth(self.defaultSectionSize())
-            base_section_size.setHeight(base_section_height)
+            self.base_section_size.setWidth(self.defaultSectionSize())
+            self.base_section_size.setHeight(base_section_height)
         else:
-            base_section_size.setWidth(base_section_width)
-            base_section_size.setHeight(self.defaultSectionSize())
+            self.base_section_size.setWidth(base_section_width)
+            self.base_section_size.setHeight(self.defaultSectionSize())
 
         model = GridHeaderTableModel(
             row=self.n_rows,
@@ -232,7 +291,7 @@ class GridTableHeaderView(QHeaderView):
                 model.index(row, col)
                 model.setData(
                     index=model.index(row, col),
-                    value=base_section_size,
+                    value=self.base_section_size,
                     role=Qt.ItemDataRole.SizeHintRole
                 )
 
@@ -240,7 +299,7 @@ class GridTableHeaderView(QHeaderView):
 
         self.sectionResized.connect(self.onSectionResized) # noqa
 
-        self.setFixedHeight(base_section_size.height() * 2)
+        self.setFixedHeight(self.base_section_size.height() * 2)
 
     def setCellLabel( # noqa
             self, 
@@ -254,6 +313,19 @@ class GridTableHeaderView(QHeaderView):
             value=label, 
             role=Qt.ItemDataRole.DisplayRole
         )
+
+    def removeCellLabel(
+            self,
+            row: int,
+            column: int
+    ) -> None:
+
+        self.model().setData(
+            index=self.model().index(row, column),
+            value=None,
+            role=RemoveCellLabelRole
+        )
+
 
     def setSpan( # noqa
             self,
@@ -279,6 +351,31 @@ class GridTableHeaderView(QHeaderView):
                 index=idx,
                 value=column_span_count,
                 role=ColumnSpanRole
+            )
+
+    def removeSpan( # noqa
+            self,
+            row: int,
+            column: int
+    ) -> None:
+
+        idx = self.model().index(row, column)
+
+        has_row_span = idx.data(RowSpanRole)
+        has_column_span = idx.data(ColumnSpanRole)
+
+        if has_row_span:
+            self.model().setData(
+                index=idx,
+                value=None,
+                role=RemoveRowSpanRole
+            )
+
+        if has_column_span:
+            self.model().setData(
+                index=idx,
+                value=None,
+                role=RemoveColumnSpanRole
             )
 
     def checkData( # noqa
@@ -546,6 +643,49 @@ class GridTableHeaderView(QHeaderView):
             r_to_update.setHeight(self.viewport().height() - section_rect.top())
             self.viewport().update(r_to_update.normalized())
 
+    def sectionSizeFromContents(self, logicalIndex: int) -> QtCore.QSize:
+
+        model = self.model()
+
+        if self.orientation() == Qt.Orientation.Horizontal:
+            level = model.rowCount()
+        else:
+            level = model.columnCount()
+
+        i  = 0
+        while i < level:
+            if self.orientation() == Qt.Orientation.Horizontal:
+                cellIndex = model.index(i, logicalIndex)
+            else:
+                cellIndex = model.index(logicalIndex, i)
+
+            colSpanIdx = self.columnSpanIndex(cellIndex)
+
+            rowSpanIdx = self.rowSpanIndex(cellIndex)
+
+            size = cellIndex.data(Qt.ItemDataRole.SizeHintRole)
+
+            if colSpanIdx.isValid():
+                colSpanFrom = colSpanIdx.column()
+                colSpanCnt = colSpanIdx.data(ColumnSpanRole)
+                colSpanTo = colSpanFrom + colSpanCnt - 1
+                size.setWidth(self.columnSpanSize(colSpanIdx.row(), colSpanFrom, colSpanCnt))
+
+                # if self.orientation() == Qt.Orientation.Vertical:
+                #     i = colSpanTo
+
+            if rowSpanIdx.isValid():
+                rowSpanFrom = rowSpanIdx.row()
+                rowSpanCnt = rowSpanIdx.data(RowSpanRole)
+                rowSpanTo = rowSpanFrom + rowSpanCnt - 1
+                size.setHeight(self.rowSpanSize(rowSpanIdx.column(), rowSpanFrom, rowSpanCnt))
+                # if self.orientation() == Qt.Orientation.Horizontal:
+                #     i = rowSpanTo
+
+            i += 1
+        return size
+
+
 
 class GridTableView(QTableView):
     def __init__(
@@ -575,6 +715,7 @@ class GridTableView(QTableView):
     ): # noqa
 
         if orientation == Qt.Orientation.Horizontal:
+
             header = GridTableHeaderView(
                 orientation=orientation,
                 rows=levels,

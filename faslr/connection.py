@@ -7,6 +7,8 @@ import sqlalchemy as sa
 
 from faslr.constants import (
     CONFIG_PATH,
+    DB_NOT_FOUND_TEXT,
+    DEFAULT_DIALOG_PATH,
     QT_FILEPATH_OPTION
 )
 
@@ -42,8 +44,10 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.engine.base import Connection
 
 from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from faslr.main import MainWindow
+
+if TYPE_CHECKING:  # pragma: no cover
+    from faslr.__main__ import MainWindow
+    from faslr.core import FCore
     from faslr.menu import MainMenuBar
 
 
@@ -55,10 +59,14 @@ class ConnectionDialog(QDialog):
 
     def __init__(
             self,
-            parent=None
+            parent: MainMenuBar = None,
+            core: FCore = None
     ):
         super().__init__(parent)
         logging.info("Connection window initialized.")
+
+        self.core = core
+        self.parent = parent
 
         self.setWindowTitle("Connection")
         self.layout = QVBoxLayout()
@@ -70,7 +78,11 @@ class ConnectionDialog(QDialog):
         self.new_connection = QRadioButton("Create new database")
         self.layout.addWidget(self.new_connection)
 
-        button_layout = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.ok_button = QDialogButtonBox.StandardButton.Ok
+
+        self.cancel_button = QDialogButtonBox.StandardButton.Cancel
+
+        button_layout = self.ok_button | self.cancel_button
 
         self.button_box = QDialogButtonBox(button_layout)
 
@@ -82,6 +94,8 @@ class ConnectionDialog(QDialog):
         self.layout.addWidget(self.button_box)
         self.setLayout(self.layout)
 
+        self.file_dialog = QFileDialog()
+
     def make_connection(
             self,
             menu_bar: MainMenuBar
@@ -90,17 +104,19 @@ class ConnectionDialog(QDialog):
         Depending on what the user selects, triggers function to either connect to an existing database
         or to a new one.
         """
-        main_window = menu_bar.parent
+        if menu_bar:
+            main_window = menu_bar.parent
+        else:
+            main_window = None
 
         if self.existing_connection.isChecked():
-            menu_bar.db = self.open_existing_db(main_window=main_window)
+            self.core.db = self.open_existing_db(main_window=main_window)
 
         elif self.new_connection.isChecked():
-            main_window.db = self.create_new_db(menu_bar=menu_bar)
+            self.core.db = self.create_new_db()
 
     def create_new_db(
-            self,
-            menu_bar: MainMenuBar
+            self
     ) -> str:
         """
         Creates a new backend database.
@@ -116,7 +132,7 @@ class ConnectionDialog(QDialog):
         filename = QFileDialog.getSaveFileName(
             parent=self,
             caption='SaveFile',
-            directory='untitled.db',
+            directory=DEFAULT_DIALOG_PATH,
             filter="Sqlite Database (*.db)",
             options=QT_FILEPATH_OPTION
         )
@@ -139,8 +155,10 @@ class ConnectionDialog(QDialog):
             self.close()
 
         if db_filename != "":
-            menu_bar.parent.connection_established = True
-            menu_bar.toggle_project_actions()
+            self.core.connection_established = True
+
+            if self.parent:
+                self.parent.toggle_project_actions()
 
         return db_filename
 
@@ -151,14 +169,18 @@ class ConnectionDialog(QDialog):
         """
         Opens a connection to an existing database.
         """
-        db_filename = QFileDialog.getOpenFileName(
+        db_filename = self.file_dialog.getOpenFileName(
             parent=self,
             caption='OpenFile',
+            directory=DEFAULT_DIALOG_PATH,
             filter='',
             initialFilter="Sqlite Database (*.db)",
-            options=QT_FILEPATH_OPTION)[0]
+            options=QT_FILEPATH_OPTION
+        )[0]
 
-        if not db_filename == "":
+        if main_window and (not db_filename == ""):
+
+            main_window.core.connection_established = True
 
             populate_project_tree(
                 db_filename=db_filename,
@@ -260,7 +282,7 @@ def populate_project_tree(
 
             country_item.appendRow(state_row)
 
-        main_window.project_root.appendRow(country_row)
+        main_window.project_model.project_root.appendRow(country_row)
 
     main_window.project_pane.expandAll()
 
@@ -277,10 +299,14 @@ class FaslrConnection:
             db_path: str
     ):
 
+        if not os.path.isfile(db_path):
+            raise FileNotFoundError(DB_NOT_FOUND_TEXT)
+
         self.engine = sa.create_engine(
             'sqlite:///' + db_path,
             echo=True
         )
+        self.raw_connection = self.engine.raw_connection()
 
         self.session = sessionmaker(bind=self.engine)()
         self.connection = self.engine.connect()
@@ -290,6 +316,10 @@ def connect_db(db_path: str) -> (Session, Connection):
     """
     Connects the db. Shortens amount of code required to do so.
     """
+
+    if not os.path.isfile(db_path):
+        raise FileNotFoundError(DB_NOT_FOUND_TEXT)
+
     engine = sa.create_engine(
         'sqlite:///' + db_path,
         echo=True
@@ -299,11 +329,12 @@ def connect_db(db_path: str) -> (Session, Connection):
     return session, connection
 
 
-def get_startup_db_path():
+def get_startup_db_path(
+        config_path: str = CONFIG_PATH
+) -> str:
     """
     Extracts the db path when the user opts to connect to one automatically upon startup.
     """
-    config_path = CONFIG_PATH
     config = configparser.ConfigParser()
     config.read(config_path)
     config.sections()

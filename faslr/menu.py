@@ -19,6 +19,10 @@ from faslr.constants import (
     OCTICONS_PATH
 )
 
+from faslr.core import FCore
+
+from faslr.engine import EngineDialog
+
 from faslr.project import ProjectDialog
 
 from faslr.settings import SettingsDialog
@@ -35,18 +39,21 @@ from PyQt6.QtWidgets import (
 )
 
 from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from faslr.main import MainWindow
+
+if TYPE_CHECKING:  # pragma no coverage
+    from faslr.__main__ import MainWindow
 
 
 class MainMenuBar(QMenuBar):
     def __init__(
             self,
-            parent: MainWindow = None
+            parent: MainWindow = None,
+            core: FCore = None
     ):
         super().__init__(parent)
 
         self.parent = parent
+        self.core = core
 
         self.connection_action = QAction(QIcon(ICONS_PATH + "db.svg"), "&Connection", self)
         self.connection_action.setShortcut(QKeySequence("Ctrl+Shift+c"))
@@ -67,6 +74,7 @@ class MainMenuBar(QMenuBar):
         self.engine_action = QAction("&Select Engine")
         self.engine_action.setShortcut("Ctrl+shift+e")
         self.engine_action.setStatusTip("Select a reserving engine.")
+        self.engine_action.triggered.connect(self.display_engine) # noqa
 
         self.settings_action = QAction("&Settings")
         self.settings_action.setShortcut("Ctrl+Shift+t")
@@ -121,8 +129,15 @@ class MainMenuBar(QMenuBar):
 
     def edit_connection(self) -> None:
         # function triggers the connection dialog box to connect to a database
-        dlg = ConnectionDialog(self)
+        dlg = ConnectionDialog(
+            self,
+            core=self.core
+        )
         dlg.exec()
+
+    def display_engine(self) -> None:
+        dlg = EngineDialog(self)
+        dlg.show()
 
     def display_about(self) -> None:
         # function to display about dialog box
@@ -131,7 +146,9 @@ class MainMenuBar(QMenuBar):
 
     def new_project(self) -> None:
         # function to display new project dialog box
-        dlg = ProjectDialog(self)
+        dlg = ProjectDialog(
+            parent=self.parent
+        )
         dlg.exec()
 
     def display_settings(self) -> None:
@@ -145,7 +162,7 @@ class MainMenuBar(QMenuBar):
     def toggle_project_actions(self) -> None:
         # disable project-based menu items until connection is established
 
-        if self.parent.connection_established:
+        if self.core.connection_established:
             self.new_action.setEnabled(True)
 
         else:
@@ -172,6 +189,7 @@ def open_github() -> None:
 
 
 def open_discussions() -> None:
+
     webbrowser.open(
         url=DISCUSSIONS_URL,
         new=0,
@@ -180,6 +198,7 @@ def open_discussions() -> None:
 
 
 def open_issue() -> None:
+
     webbrowser.open(
         url=ISSUES_URL,
         new=0,

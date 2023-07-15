@@ -3,6 +3,9 @@ from faslr.constants.analysis import (
     VALUE_TYPES_COMBO_BOX_WIDTH
 )
 
+from faslr.constants.connection import (
+    DB_NOT_FOUND_TEXT
+)
 
 from faslr.constants.development import (
     LDF_AVERAGES,
@@ -22,9 +25,11 @@ from faslr.constants.general import (
     BRANCH_SHA,
     BUILD_VERSION,
     CONFIG_PATH,
+    CONFIG_TEMPLATES_PATH,
     CURRENT_BRANCH,
     CURRENT_COMMIT,
     CURRENT_COMMIT_LONG,
+    DEFAULT_DIALOG_PATH,
     DISCUSSIONS_URL,
     DOCUMENTATION_URL,
     GITHUB_URL,
@@ -33,7 +38,24 @@ from faslr.constants.general import (
     OCTICONS_PATH,
     QT_FILEPATH_OPTION,
     ROOT_PATH,
+    SAMPLE_DB_NAME,
+    SAMPLE_DIALOG_PATH,
     TEMPLATES_PATH
+)
+
+from faslr.constants.role import (
+    ColumnSpanRole,
+    RowSpanRole,
+    ColumnGroupRole,
+    ExhibitColumnRole,
+    AddColumnRole,
+    DropColumnRole,
+    RemoveCellLabelRole,
+    RemoveRowSpanRole,
+    RemoveColumnSpanRole,
+    ColumnSwapRole,
+    ColumnRotateRole,
+    IndexConstantRole
 )
 
 from faslr.constants.triangle import (
